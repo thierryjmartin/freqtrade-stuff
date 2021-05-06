@@ -47,8 +47,6 @@ class SMAOffset(IStrategy):
     buy_trigger = CategoricalParameter([SMA, EMA], default=buy_params['buy_trigger'], space='buy')
     sell_trigger = CategoricalParameter([SMA, EMA], default=sell_params['sell_trigger'], space='sell')
 
-
-
     # Trailing stop:
     trailing_stop = False
     trailing_stop_positive = 0.1
@@ -111,7 +109,7 @@ class SMAOffset(IStrategy):
         return dataframe
 
     def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        if self.buy_trigger.value == 'EMA':
+        if self.buy_trigger.value == EMA:
             dataframe['ma_buy'] = ta.EMA(dataframe, timeperiod=int(self.base_nb_candles_buy.value))
         else:
             dataframe['ma_buy'] = ta.SMA(dataframe, timeperiod=int(self.base_nb_candles_buy.value))
@@ -127,7 +125,7 @@ class SMAOffset(IStrategy):
         return dataframe
 
     def populate_sell_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        if self.sell_trigger.value == 'EMA':
+        if self.sell_trigger.value == EMA:
             dataframe['ma_sell'] = ta.EMA(dataframe, timeperiod=int(self.base_nb_candles_sell.value))
         else:
             dataframe['ma_sell'] = ta.SMA(dataframe, timeperiod=int(self.base_nb_candles_sell.value))
