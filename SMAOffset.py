@@ -71,28 +71,9 @@ class SMAOffset(IStrategy):
 
     use_custom_stoploss = False
 
-    def custom_stoploss(self, pair: str, trade: 'Trade', current_time: datetime,
-                        current_rate: float, current_profit: float, **kwargs) -> float:
-        if (current_profit < 0) & (current_time - timedelta(minutes=360) > trade.open_date_utc):
-            return 0.02
-        elif current_profit > 0.04:
-            return stoploss_from_open(0.02, current_profit)
-        elif current_profit > 0.06:
-            return stoploss_from_open(0.03, current_profit)
-        elif current_profit > 0.08:
-            return stoploss_from_open(0.04, current_profit)
-        elif current_profit > 0.10:
-            return stoploss_from_open(0.05, current_profit)
-        elif current_profit > 0.12:
-            return stoploss_from_open(0.10, current_profit)
-        elif current_profit > 0.14:
-            return stoploss_from_open(0.11, current_profit)
-        elif current_profit > 0.16:
-            return stoploss_from_open(0.12, current_profit)
-        return 1
-
-
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # uncomment for plotting
+
         #if self.buy_trigger.value == 'EMA':
         #    dataframe['ma_buy'] = ta.EMA(dataframe, timeperiod=self.base_nb_candles_buy.value)
         #else:
