@@ -16,7 +16,7 @@ from freqtrade.strategy import stoploss_from_open, merge_informative_pair, Decim
 
 # author @tirail
 
-class SMAOffset(IStrategy)
+class SMAOffset(IStrategy):
 	INTERFACE_VERSION = 2
 
 	# hyperopt and pas results here
