@@ -19,7 +19,7 @@ from freqtrade.strategy import stoploss_from_open, merge_informative_pair, Decim
 class SMAOffset(IStrategy):
 	INTERFACE_VERSION = 2
 
-	# hyperopt and pas results here
+	# hyperopt and paste results here
 	# Buy hyperspace params:
 	buy_params = {
 		"base_nb_candles_buy": 30,
