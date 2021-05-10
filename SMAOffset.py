@@ -14,109 +14,92 @@ from datetime import datetime, timedelta
 from freqtrade.persistence import Trade
 from freqtrade.strategy import stoploss_from_open, merge_informative_pair, DecimalParameter, IntParameter, CategoricalParameter
 
-SMA = 'SMA'
-EMA = 'EMA'
+# author @tirail
 
-# Buy hyperspace params:
-buy_params = {
-	"base_nb_candles_buy": 30,
-	"buy_trigger": SMA,
-	"low_offset": 0.92,
-}
+class SMAOffset(IStrategy)
+	INTERFACE_VERSION = 2
 
-# Sell hyperspace params:
-sell_params = {
-	"base_nb_candles_sell": 41,
-	"high_offset": 1.026,
-	"sell_trigger": SMA,
-}
+	# hyperopt and pas results here
+	# Buy hyperspace params:
+	buy_params = {
+		"base_nb_candles_buy": 30,
+		"buy_trigger": ta.SMA,
+		"low_offset": 0.958,
+	}
 
-class SMAOffset(IStrategy):
-    INTERFACE_VERSION = 2
+	# Sell hyperspace params:
+	sell_params = {
+		"base_nb_candles_sell": 30,
+		"high_offset": 1.012,
+		"sell_trigger": ta.SMA,
+	}
 
-    # ROI table:
-    minimal_roi = {"0": 1}
+	# Stoploss:
+	stoploss = -0.5
 
-    # Stoploss:
-    stoploss = -0.5
+	# ROI table:
+	minimal_roi = {
+		"0": 1,
+	}
 
-    base_nb_candles_buy = IntParameter(5, 80, default=buy_params['base_nb_candles_buy'], space='buy')
-    base_nb_candles_sell = IntParameter(5, 80, default=sell_params['base_nb_candles_sell'], space='sell')
-    low_offset = DecimalParameter(0.9, 0.99, default=buy_params['low_offset'], space='buy')
-    high_offset = DecimalParameter(0.99, 1.1, default=sell_params['high_offset'], space='sell')
-    buy_trigger = CategoricalParameter([SMA, EMA], default=buy_params['buy_trigger'], space='buy')
-    sell_trigger = CategoricalParameter([SMA, EMA], default=sell_params['sell_trigger'], space='sell')
+	base_nb_candles_buy = IntParameter(5, 80, default=buy_params['base_nb_candles_buy'], space='buy')
+	base_nb_candles_sell = IntParameter(5, 80, default=sell_params['base_nb_candles_sell'], space='sell')
+	low_offset = DecimalParameter(0.8, 0.99, default=buy_params['low_offset'], space='buy')
+	high_offset = DecimalParameter(0.8, 1.1, default=sell_params['high_offset'], space='sell')
+	buy_trigger = CategoricalParameter([ta.SMA, ta.EMA], default=buy_params['buy_trigger'], space='buy')
+	sell_trigger = CategoricalParameter([ta.SMA, ta.EMA], default=sell_params['sell_trigger'], space='sell')
 
-    # Trailing stop:
-    trailing_stop = False
-    trailing_stop_positive = 0.1
-    trailing_stop_positive_offset = 0
-    trailing_only_offset_is_reached = False
+	# Trailing stop:
+	trailing_stop = False
+	trailing_stop_positive = 0.0001
+	trailing_stop_positive_offset = 0
+	trailing_only_offset_is_reached = False
 
-    # Optimal timeframe for the strategy
-    timeframe = '5m'
+	# Optimal timeframe for the strategy
+	timeframe = '5m'
 
-    use_sell_signal = True
-    sell_profit_only = False
+	use_sell_signal = True
+	sell_profit_only = False
 
-    process_only_new_candles = True
-    startup_candle_count = 30
+	process_only_new_candles = True
+	startup_candle_count = 30
 
-    plot_config = {
-        'main_plot': {
-            'ma_offset_buy': {'color': 'orange'},
-            'ma_offset_sell': {'color': 'orange'},
-        },
-    }
+	plot_config = {
+		'main_plot': {
+			'ma_offset_buy': {'color': 'orange'},
+			'ma_offset_sell': {'color': 'orange'},
+		},
+	}
 
-    use_custom_stoploss = False
+	use_custom_stoploss = False
 
-    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # uncomment for plotting
+	def custom_stoploss(self, pair: str, trade: 'Trade', current_time: datetime,
+						current_rate: float, current_profit: float, **kwargs) -> float:
+		return 1
 
-        #if self.buy_trigger.value == 'EMA':
-        #    dataframe['ma_buy'] = ta.EMA(dataframe, timeperiod=self.base_nb_candles_buy.value)
-        #else:
-        #    dataframe['ma_buy'] = ta.SMA(dataframe, timeperiod=self.base_nb_candles_buy.value)
+	def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+		# dataframe['ma_offset_buy'] = self.buy_trigger.value(dataframe, int(self.base_nb_candles_buy.value)) * self.low_offset.value
+		# dataframe['ma_offset_sell'] = self.sell_trigger.value(dataframe, int(self.base_nb_candles_sell.value)) * self.high_offset.value
+		return dataframe
 
-        #if self.sell_trigger.value == 'EMA':
-        #    dataframe['ma_sell'] = ta.EMA(dataframe, timeperiod=self.base_nb_candles_sell.value)
-        #else:
-        #    dataframe['ma_sell'] = ta.SMA(dataframe, timeperiod=self.base_nb_candles_sell.value)
+	def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+		dataframe['ma_offset_buy'] = self.buy_trigger.value(dataframe, int(self.base_nb_candles_buy.value)) * self.low_offset.value
 
-        #dataframe['ma_offset_buy'] = dataframe['ma_buy'] * self.low_offset.value
-        #dataframe['ma_offset_sell'] = dataframe['ma_sell'] * self.high_offset.value
+		dataframe.loc[
+			(
+					(dataframe['close'] < dataframe['ma_offset_buy']) &
+					(dataframe['volume'] > 0)
+			),
+			'buy'] = 1
+		return dataframe
 
-        return dataframe
+	def populate_sell_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+		dataframe['ma_offset_sell'] = self.sell_trigger.value(dataframe, int(self.base_nb_candles_sell.value)) * self.high_offset.value
 
-    def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        if self.buy_trigger.value == EMA:
-            dataframe['ma_buy'] = ta.EMA(dataframe, timeperiod=int(self.base_nb_candles_buy.value))
-        else:
-            dataframe['ma_buy'] = ta.SMA(dataframe, timeperiod=int(self.base_nb_candles_buy.value))
-
-        dataframe['ma_offset_buy'] = dataframe['ma_buy'] * self.low_offset.value
-
-        dataframe.loc[
-            (
-                (dataframe['close'] < dataframe['ma_offset_buy']) &
-                (dataframe['volume'] > 0)
-            ),
-            'buy'] = 1
-        return dataframe
-
-    def populate_sell_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        if self.sell_trigger.value == EMA:
-            dataframe['ma_sell'] = ta.EMA(dataframe, timeperiod=int(self.base_nb_candles_sell.value))
-        else:
-            dataframe['ma_sell'] = ta.SMA(dataframe, timeperiod=int(self.base_nb_candles_sell.value))
-
-        dataframe['ma_offset_sell'] = dataframe['ma_sell'] * self.high_offset.value
-
-        dataframe.loc[
-            (
-                (dataframe['close'] > dataframe['ma_offset_sell']) &
-                (dataframe['volume'] > 0)
-            ),
-            'sell'] = 1
-        return dataframe
+		dataframe.loc[
+			(
+					(dataframe['close'] > dataframe['ma_offset_sell']) &
+					(dataframe['volume'] > 0)
+			),
+			'sell'] = 1
+		return dataframe
