@@ -16,6 +16,11 @@ from freqtrade.strategy import stoploss_from_open, merge_informative_pair, Decim
 
 # author @tirail
 
+ma_types = {
+	'SMA': ta.SMA,
+	'EMA': ta.EMA,
+}
+
 class SMAOffset(IStrategy):
 	INTERFACE_VERSION = 2
 
@@ -23,7 +28,7 @@ class SMAOffset(IStrategy):
 	# Buy hyperspace params:
 	buy_params = {
 		"base_nb_candles_buy": 30,
-		"buy_trigger": ta.SMA,
+		"buy_trigger": 'SMA',
 		"low_offset": 0.958,
 	}
 
@@ -31,7 +36,7 @@ class SMAOffset(IStrategy):
 	sell_params = {
 		"base_nb_candles_sell": 30,
 		"high_offset": 1.012,
-		"sell_trigger": ta.SMA,
+		"sell_trigger": 'EMA',
 	}
 
 	# Stoploss:
@@ -46,8 +51,8 @@ class SMAOffset(IStrategy):
 	base_nb_candles_sell = IntParameter(5, 80, default=sell_params['base_nb_candles_sell'], space='sell')
 	low_offset = DecimalParameter(0.8, 0.99, default=buy_params['low_offset'], space='buy')
 	high_offset = DecimalParameter(0.8, 1.1, default=sell_params['high_offset'], space='sell')
-	buy_trigger = CategoricalParameter([ta.SMA, ta.EMA], default=buy_params['buy_trigger'], space='buy')
-	sell_trigger = CategoricalParameter([ta.SMA, ta.EMA], default=sell_params['sell_trigger'], space='sell')
+	buy_trigger = CategoricalParameter(ma_types.keys(), default=buy_params['buy_trigger'], space='buy')
+	sell_trigger = CategoricalParameter(ma_types.keys(), default=sell_params['sell_trigger'], space='sell')
 
 	# Trailing stop:
 	trailing_stop = False
@@ -78,12 +83,14 @@ class SMAOffset(IStrategy):
 		return 1
 
 	def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-		# dataframe['ma_offset_buy'] = self.buy_trigger.value(dataframe, int(self.base_nb_candles_buy.value)) * self.low_offset.value
-		# dataframe['ma_offset_sell'] = self.sell_trigger.value(dataframe, int(self.base_nb_candles_sell.value)) * self.high_offset.value
+		if not self.config['runmode'].value == 'hyperopt':
+			dataframe['ma_offset_buy'] = ma_types[self.buy_trigger.value](dataframe, int(self.base_nb_candles_buy.value)) * self.low_offset.value
+			dataframe['ma_offset_sell'] = ma_types[self.sell_trigger.value](dataframe, int(self.base_nb_candles_sell.value)) * self.high_offset.value
 		return dataframe
 
 	def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-		dataframe['ma_offset_buy'] = self.buy_trigger.value(dataframe, int(self.base_nb_candles_buy.value)) * self.low_offset.value
+		if self.config['runmode'].value == 'hyperopt':
+			dataframe['ma_offset_buy'] = ma_types[self.buy_trigger.value](dataframe, int(self.base_nb_candles_buy.value)) * self.low_offset.value
 
 		dataframe.loc[
 			(
@@ -94,7 +101,8 @@ class SMAOffset(IStrategy):
 		return dataframe
 
 	def populate_sell_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-		dataframe['ma_offset_sell'] = self.sell_trigger.value(dataframe, int(self.base_nb_candles_sell.value)) * self.high_offset.value
+		if self.config['runmode'].value == 'hyperopt':
+			dataframe['ma_offset_sell'] = ma_types[self.sell_trigger.value](dataframe, int(self.base_nb_candles_sell.value)) * self.high_offset.value
 
 		dataframe.loc[
 			(
