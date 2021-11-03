@@ -2,7 +2,7 @@
 from freqtrade.strategy.interface import IStrategy
 from typing import Dict, List
 from functools import reduce
-from pandas import DataFrame
+from pandas import DataFrame, Series
 # --------------------------------
 
 import logging
@@ -87,7 +87,7 @@ class TrailingBuyStrat(YourStrat):
                     'trailing_buy_order_started': True,
                     'trailing_buy_order_uplimit': last_candle['close'],
                     'start_trailing_price': last_candle['close'],
-                    'buy_tag': last_candle['buy_tag']
+                    'buy_tag': last_candle['buy_tag'] if 'buy_tag' in last_candle else 'buy signal'
                 }
                 logger.info(f'start trailing buy for {metadata["pair"]} at {last_candle["close"]}')
             elif self.custom_info[metadata["pair"]]['trailing_buy']['trailing_buy_order_started']:
