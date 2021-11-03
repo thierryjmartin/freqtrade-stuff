@@ -27,14 +27,11 @@ class TrailingBuyStrat(YourStrat):
     #
     # if process_only_new_candles = True, then you need to use 1m timeframe (and normal strat timeframe as informative)
     # if process_only_new_candles = False, it will use ticker data and you won't need to change anything
-    #
-    # dependeancies
-    # import logging
-    # import pandas as pd
 
 
     trailing_buy_order_enabled = True
-    trailing_buy_offset = 0.005 # rebound limit befor a buy in % of initial price
+    trailing_buy_offset = 0.005 # rebound limit before a buy in % of initial price
+    # (example with 0.5%. initial price : 100 (uplimit is 100.5), 2nd price : 99 (no buy, uplimit updated to 99.5), 3price 98 (no buy uplimit updated to 98.5), 4th price 99 -> BUY
     trailing_buy_max = 0.1 # stop trailing buy if current_price > starting_price * (1+trailing_buy_max)
 
     process_only_new_candles = False
