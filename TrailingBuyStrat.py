@@ -99,10 +99,11 @@ class TrailingBuyStrat(YourStrat):
                     # buy ! current price > uplimit but lower thant starting price
                     dataframe.iloc[-1, dataframe.columns.get_loc('buy')] = 1
                     ratio = "%.2f" % ((1 - current_price / self.custom_info[metadata['pair']]['trailing_buy']['start_trailing_price']) * 100)
-                    dataframe.iloc[-1, dataframe.columns.get_loc('buy_tag')] = f"{self.custom_info[metadata['pair']]['trailing_buy']['buy_tag']} ({ratio} %)"
+                    if 'buy_tag' in dataframe.columns:
+                        dataframe.iloc[-1, dataframe.columns.get_loc('buy_tag')] = f"{self.custom_info[metadata['pair']]['trailing_buy']['buy_tag']} ({ratio} %)"
                     # stop trailing when buy signal ! prevent from buying much higher price when slot is free
                     self.custom_info[metadata["pair"]]['trailing_buy'] = self.init_trailing_dict
-                    logger.info(f'STOP trailing buy for {metadata["pair"]} because I buy it')
+                    logger.info(f'STOP trailing buy for {metadata["pair"]} because I buy it {ratio}')
                 elif current_price > (self.custom_info[metadata["pair"]]['trailing_buy']['start_trailing_price'] * (1 + self.trailing_buy_max)):
                     self.custom_info[metadata["pair"]]['trailing_buy'] = self.init_trailing_dict
                     logger.info(f'STOP trailing buy for {metadata["pair"]} because of the price is higher than starting prix * {1 + self.trailing_buy_max}')
