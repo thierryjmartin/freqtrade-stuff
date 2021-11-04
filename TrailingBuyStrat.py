@@ -102,19 +102,21 @@ class TrailingBuyStrat(YourStrat):
             elif self.custom_info[metadata["pair"]]['trailing_buy']['trailing_buy_order_started']:
                 if current_price < self.custom_info[metadata["pair"]]['trailing_buy']['trailing_buy_order_uplimit']:
                     # update uplimit
+                    old_uplimit = self.custom_info[metadata["pair"]]["trailing_buy"]["trailing_buy_order_uplimit"]
                     self.custom_info[metadata["pair"]]['trailing_buy']['trailing_buy_order_uplimit'] = min(current_price * (1 + self.trailing_buy_offset), self.custom_info[metadata["pair"]]['trailing_buy']['trailing_buy_order_uplimit'])
-                    logger.info(f'update trailing buy for {metadata["pair"]} at {self.custom_info[metadata["pair"]]["trailing_buy"]["trailing_buy_order_uplimit"]}')
+                    logger.info(f'update trailing buy for {metadata["pair"]} at {old_uplimit} -> {self.custom_info[metadata["pair"]]["trailing_buy"]["trailing_buy_order_uplimit"]}')
                 elif current_price < self.custom_info[metadata["pair"]]['trailing_buy']['start_trailing_price']:
                     # buy ! current price > uplimit but lower thant starting price
                     dataframe.iloc[-1, dataframe.columns.get_loc('buy')] = 1
                     ratio = "%.2f" % ((1 - current_price / self.custom_info[metadata['pair']]['trailing_buy']['start_trailing_price']) * 100)
                     if 'buy_tag' in dataframe.columns:
                         dataframe.iloc[-1, dataframe.columns.get_loc('buy_tag')] = f"{self.custom_info[metadata['pair']]['trailing_buy']['buy_tag']} ({ratio} %)"
+                    logger.info(f"price OK for {metadata['pair']} ({ratio} %), order may not be triggered if all slots are full")
                 elif current_price > (self.custom_info[metadata["pair"]]['trailing_buy']['start_trailing_price'] * (1 + self.trailing_buy_max)):
                     self.custom_info[metadata["pair"]]['trailing_buy'] = self.init_trailing_dict
                     logger.info(f'STOP trailing buy for {metadata["pair"]} because of the price is higher than starting prix * {1 + self.trailing_buy_max}')
                 else:
-                    logger.info(f'price to high for {metadata["pair"]} at {current_price} vs {self.custom_info[metadata["pair"]]["trailing_buy"]["trailing_buy_order_uplimit"]}')
+                    logger.info(f'price too high for {metadata["pair"]} at {current_price} vs {self.custom_info[metadata["pair"]]["trailing_buy"]["trailing_buy_order_uplimit"]}')
         elif self.trailing_buy_order_enabled:
             # FOR BACKTEST
             # NOT WORKING
