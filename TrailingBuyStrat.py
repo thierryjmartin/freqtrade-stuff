@@ -111,7 +111,7 @@ class TrailingBuyStrat(YourStrat):
                     ratio = "%.2f" % ((1 - current_price / self.custom_info[metadata['pair']]['trailing_buy']['start_trailing_price']) * 100)
                     if 'buy_tag' in dataframe.columns:
                         dataframe.iloc[-1, dataframe.columns.get_loc('buy_tag')] = f"{self.custom_info[metadata['pair']]['trailing_buy']['buy_tag']} ({ratio} %)"
-                    logger.info(f"price OK for {metadata['pair']} ({ratio} %), order may not be triggered if all slots are full")
+                    logger.info(f"price OK for {metadata['pair']} ({ratio} %, {current_price}), order may not be triggered if all slots are full")
                 elif current_price > (self.custom_info[metadata["pair"]]['trailing_buy']['start_trailing_price'] * (1 + self.trailing_buy_max)):
                     self.custom_info[metadata["pair"]]['trailing_buy'] = self.init_trailing_dict
                     logger.info(f'STOP trailing buy for {metadata["pair"]} because of the price is higher than starting prix * {1 + self.trailing_buy_max}')
