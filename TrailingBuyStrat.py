@@ -66,6 +66,13 @@ class TrailingBuyStrat(YourStrat):
         self.custom_info[pair]['trailing_buy'] = self.init_trailing_dict
         return val
 
+    def confirm_trade_entry(self, pair: str, order_type: str, amount: float, rate: float, time_in_force: str, **kwargs) -> bool:
+        val = super().confirm_trade_entry(pair, order_type, amount, rate, time_in_force, **kwargs)
+        # stop trailing when buy signal ! prevent from buying much higher price when slot is free
+        self.custom_info[pair]['trailing_buy'] = self.init_trailing_dict
+        logger.info(f'STOP trailing buy for {pair} because I buy it')
+        return val
+
     def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         def get_local_min(x):
             win = dataframe.loc[:, 'barssince_last_buy'].iloc[x.shape[0] - 1].astype('int')
@@ -83,13 +90,15 @@ class TrailingBuyStrat(YourStrat):
                 current_price = last_candle['close']
             dataframe['buy'] = 0
             if not self.custom_info[metadata["pair"]]['trailing_buy']['trailing_buy_order_started'] and last_candle['pre_buy'] == 1:
-                self.custom_info[metadata["pair"]]['trailing_buy'] = {
-                    'trailing_buy_order_started': True,
-                    'trailing_buy_order_uplimit': last_candle['close'],
-                    'start_trailing_price': last_candle['close'],
-                    'buy_tag': last_candle['buy_tag'] if 'buy_tag' in last_candle else 'buy signal'
-                }
-                logger.info(f'start trailing buy for {metadata["pair"]} at {last_candle["close"]}')
+                open_trades = Trade.get_trades([Trade.pair == metadata['pair'], Trade.is_open.is_(True), ]).all()
+                if not open_trades:
+                    self.custom_info[metadata["pair"]]['trailing_buy'] = {
+                        'trailing_buy_order_started': True,
+                        'trailing_buy_order_uplimit': last_candle['close'],
+                        'start_trailing_price': last_candle['close'],
+                        'buy_tag': last_candle['buy_tag'] if 'buy_tag' in last_candle else 'buy signal'
+                    }
+                    logger.info(f'start trailing buy for {metadata["pair"]} at {last_candle["close"]}')
             elif self.custom_info[metadata["pair"]]['trailing_buy']['trailing_buy_order_started']:
                 if current_price < self.custom_info[metadata["pair"]]['trailing_buy']['trailing_buy_order_uplimit']:
                     # update uplimit
@@ -101,9 +110,7 @@ class TrailingBuyStrat(YourStrat):
                     ratio = "%.2f" % ((1 - current_price / self.custom_info[metadata['pair']]['trailing_buy']['start_trailing_price']) * 100)
                     if 'buy_tag' in dataframe.columns:
                         dataframe.iloc[-1, dataframe.columns.get_loc('buy_tag')] = f"{self.custom_info[metadata['pair']]['trailing_buy']['buy_tag']} ({ratio} %)"
-                    # stop trailing when buy signal ! prevent from buying much higher price when slot is free
-                    self.custom_info[metadata["pair"]]['trailing_buy'] = self.init_trailing_dict
-                    logger.info(f'STOP trailing buy for {metadata["pair"]} because I buy it {ratio}')
+                    logger.log(f'buy signal for {metadata["pair"]}, all trades slots are filled, trailing continues...')
                 elif current_price > (self.custom_info[metadata["pair"]]['trailing_buy']['start_trailing_price'] * (1 + self.trailing_buy_max)):
                     self.custom_info[metadata["pair"]]['trailing_buy'] = self.init_trailing_dict
                     logger.info(f'STOP trailing buy for {metadata["pair"]} because of the price is higher than starting prix * {1 + self.trailing_buy_max}')
