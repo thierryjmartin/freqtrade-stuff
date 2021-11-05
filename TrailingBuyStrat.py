@@ -19,13 +19,15 @@ class YourStrat(IStrategy):
     pass
 
 class TrailingBuyStrat(YourStrat):
-    # This class is designed to heritate from yours and starts trailing buy with your buy signals
+    # Orignal idea by @MukavaValkku, code by @tirail
+    #
+    # This class is designed to inherit from yours and starts trailing buy with your buy signals
     # Trailing buy starts at any buy signal
     # Trailing buy stops  with BUY if : price decreases and rises again more than trailing_buy_offset
-    # Trailing buy stops with NO BUY : current price is > intial price * (1 +  trailing_buy_max) OR custom_sell tag
+    # Trailing buy stops with NO BUY : current price is > initial price * (1 +  trailing_buy_max) OR custom_sell tag
     # IT IS NOT COMPATIBLE WITH BACKTEST/HYPEROPT
     #
-    # if process_only_new_candles = True, then you need to use 1m timeframe (and normal strat timeframe as informative)
+    # if process_only_new_candles = True, then you need to use 1m timeframe (and normal strategy timeframe as informative)
     # if process_only_new_candles = False, it will use ticker data and you won't need to change anything
 
     trailing_buy_order_enabled = True
