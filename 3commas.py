@@ -1,3 +1,5 @@
+# https://github.com/bogdanteodoru/py3cw
+
 def confirm_trade_entry(self, pair: str, order_type: str, amount: float, rate: float,
                             time_in_force: str, current_time: datetime, **kwargs) -> bool:
 
