@@ -94,11 +94,15 @@ class TrailingBuyStrat(YourStrat):
         current_trailing_profit_ratio = self.current_trailing_profit_ratio(pair, current_price)
         default_offset = 0.005
 
+        trailing_buy = self.trailing_buy(pair)
+        if not trailing_buy['trailing_buy_order_started']:
+            return default_offset
+
         # example with duration and indicators
         # dry run, live only
         last_candle = dataframe.iloc[-1]
         current_time = datetime.datetime.now(datetime.timezone.utc)
-        trailing_duration = current_time - self.trailing_buy(pair)['start_trailing_time']
+        trailing_duration = current_time - trailing_buy['start_trailing_time']
         if trailing_duration.total_seconds() > 3600:
             if current_trailing_profit_ratio > 0 and last_candle['pre_buy'] == 1:
                 # more than 1h, price under first signal, buy signal still active -> buy
