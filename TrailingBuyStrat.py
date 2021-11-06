@@ -87,9 +87,9 @@ class TrailingBuyStrat(YourStrat):
             return default_offset
 
         trailing_buy_offset = {
-            0: default_offset,
-            0.03: 0.01,
             0.06: 0.02,
+            0.03: 0.01,
+            0: default_offset,
         }
 
         for key in trailing_buy_offset:
