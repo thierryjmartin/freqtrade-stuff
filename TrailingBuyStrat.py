@@ -162,11 +162,6 @@ class TrailingBuyStrat(YourStrat):
         return val
 
     def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        def get_local_min(x):
-            win = dataframe.loc[:, 'barssince_last_buy'].iloc[x.shape[0] - 1].astype('int')
-            win = max(win, 0)
-            return pd.Series(x).rolling(window=win).min().iloc[-1]
-
         dataframe = super().populate_buy_trend(dataframe, metadata)
         dataframe = dataframe.rename(columns={"buy": "pre_buy"})
 
@@ -222,42 +217,6 @@ class TrailingBuyStrat(YourStrat):
                     # uplimit > current_price > max_price, continue trailing and wait for the price to go down
                     self.trailing_buy_info(metadata["pair"], current_price)
                     logger.info(f'price too high for {metadata["pair"]} !')
-        elif self.trailing_buy_order_enabled:
-            # FOR BACKTEST
-            # NOT WORKING
-            dataframe.loc[
-                (dataframe['pre_buy'] == 1) &
-                (dataframe['pre_buy'].shift() == 0)
-                , 'pre_buy_switch'] = 1
-            dataframe['pre_buy_switch'] = dataframe['pre_buy_switch'].fillna(0)
-
-            dataframe['barssince_last_buy'] = dataframe['pre_buy_switch'].groupby(dataframe['pre_buy_switch'].cumsum()).cumcount()
-
-            # Create integer positions of each row
-            idx_positions = np.arange(len(dataframe))
-            # "shift" those integer positions by the amount in shift col
-            shifted_idx_positions = idx_positions - dataframe["barssince_last_buy"]
-            # get the label based index from our DatetimeIndex
-            shifted_loc_index = dataframe.index[shifted_idx_positions]
-            # Retrieve the "shifted" values and assign them as a new column
-            dataframe["close_5m_last_buy"] = dataframe.loc[shifted_loc_index, "close_5m"].values
-
-            dataframe.loc[:, 'close_lower'] = dataframe.loc[:, 'close'].expanding().apply(get_local_min)
-            dataframe['close_lower'] = np.where(dataframe['close_lower'].isna() == True, dataframe['close'], dataframe['close_lower'])
-            dataframe['close_lower_offset'] = dataframe['close_lower'] * (1 + self.trailing_buy_offset)
-            dataframe['trailing_buy_order_uplimit'] = np.where(dataframe['barssince_last_buy'] < 20, pd.DataFrame([dataframe['close_5m_last_buy'], dataframe['close_lower_offset']]).min(), np.nan)
-
-            dataframe.loc[
-                (dataframe['barssince_last_buy'] < 20) &  # must buy within last 20 candles after signal
-                (dataframe['close'] > dataframe['trailing_buy_order_uplimit'])
-                , 'trailing_buy'] = 1
-
-            dataframe['trailing_buy_count'] = dataframe['trailing_buy'].rolling(20).sum()
-
-            dataframe.log[
-                (dataframe['trailing_buy'] == 1) &
-                (dataframe['trailing_buy_count'] == 1)
-                , 'buy'] = 1
         else:  # No buy trailing
             dataframe.loc[
                 (dataframe['pre_buy'] == 1)
