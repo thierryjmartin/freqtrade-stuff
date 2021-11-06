@@ -187,9 +187,9 @@ class TrailingBuyStrat(YourStrat):
                     self.custom_info[metadata["pair"]]['trailing_buy'] = {
                         'trailing_buy_order_started': True,
                         'trailing_buy_order_uplimit': last_candle['close'],
-                        'start_trailing_price': datetime.datetime.now(datetime.timezone.utc),
+                        'start_trailing_price': last_candle['close'],
                         'buy_tag': last_candle['buy_tag'] if 'buy_tag' in last_candle else 'buy signal',
-                        'start_trailing_time': last_candle['date'],
+                        'start_trailing_time': datetime.datetime.now(datetime.timezone.utc),
                         'offset': 0,
                     }
                     self.trailing_buy_info(metadata["pair"], current_price)
