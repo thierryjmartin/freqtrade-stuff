@@ -44,7 +44,8 @@ class TrailingBuyStrat(YourStrat):
         'trailing_buy_order_uplimit': 0,
         'start_trailing_price': 0,
         'buy_tag': None,
-        'start_trailing_time': None
+        'start_trailing_time': None,
+        'offset': 0,
     }
 
     def trailing_buy(self, pair, reinit=False):
@@ -67,8 +68,8 @@ class TrailingBuyStrat(YourStrat):
            f"duration: {current_time - trailing_buy['start_trailing_time']}, "
            f"current: {current_price:.4f}, "
            f"uplimit: {trailing_buy['trailing_buy_order_uplimit']:.4f}, "
-           f"profit: {self.current_trailing_profit_ratio(pair, current_price):.4f}, "
-           f"offset: {self.trailing_buy_offset(pair, current_price)}")
+           f"profit: {self.current_trailing_profit_ratio(pair, current_price)*100:.2f}%, "
+           f"offset: {trailing_buy['offset']}")
 
     def current_trailing_profit_ratio(self, pair: str, current_price: float) -> float:
         trailing_buy = self.trailing_buy(pair)
@@ -85,13 +86,29 @@ class TrailingBuyStrat(YourStrat):
         self.trailing_buy_info(pair, current_price)
         logger.info(f"price OK for {pair} ({ratio} %, {current_price}), order may not be triggered if all slots are full")
 
-    def trailing_buy_offset(self, pair: str, current_price: float):
+    def trailing_buy_offset(self, dataframe, pair: str, current_price: float):
         # return rebound limit before a buy in % of initial price, function of current price
-        # return None to stop trailing buy
-        # return 'forcebuy' to force buy
+        # return None to stop trailing buy (will start again at next buy signal)
+        # return 'forcebuy' to force immediate buy
         # (example with 0.5%. initial price : 100 (uplimit is 100.5), 2nd price : 99 (no buy, uplimit updated to 99.5), 3price 98 (no buy uplimit updated to 98.5), 4th price 99 -> BUY
         current_trailing_profit_ratio = self.current_trailing_profit_ratio(pair, current_price)
         default_offset = 0.005
+
+        # example with duration and indicators
+        # dry run, live only
+        last_candle = dataframe.iloc[-1]
+        current_time = datetime.datetime.now(datetime.timezone.utc)
+        trailing_duration = current_time - self.trailing_buy(pair)['start_trailing_time']
+        if trailing_duration.total_seconds() > 3600:
+            if current_trailing_profit_ratio > 0 and last_candle['pre_buy'] == 1:
+                # more than 1h, price under first signal, buy signal still active -> buy
+                return 'forcebuy'
+            else:
+                # wait for next signal
+                return None
+        elif trailing_duration.total_seconds() < 90 and current_trailing_profit_ratio > 0.02:
+            # less than 90s and price is rising, buy
+            return 'forcebuy'
 
         if current_trailing_profit_ratio < 0:
             # current price is higher than initial price
@@ -157,7 +174,7 @@ class TrailingBuyStrat(YourStrat):
                 current_price = last_candle['close']
             dataframe['buy'] = 0
             trailing_buy = self.trailing_buy(metadata['pair'])
-            trailing_buy_offset = self.trailing_buy_offset(metadata['pair'], current_price)
+            trailing_buy_offset = self.trailing_buy_offset(dataframe, metadata['pair'], current_price)
 
             if not trailing_buy['trailing_buy_order_started'] and last_candle['pre_buy'] == 1:
                 open_trades = Trade.get_trades([Trade.pair == metadata['pair'], Trade.is_open.is_(True), ]).all()
@@ -169,6 +186,7 @@ class TrailingBuyStrat(YourStrat):
                         'start_trailing_price': datetime.datetime.now(datetime.timezone.utc),
                         'buy_tag': last_candle['buy_tag'] if 'buy_tag' in last_candle else 'buy signal',
                         'start_trailing_time': last_candle['date'],
+                        'offset': 0,
                     }
                     self.trailing_buy_info(metadata["pair"], current_price)
                     logger.info(f'start trailing buy for {metadata["pair"]} at {last_candle["close"]}')
@@ -185,6 +203,7 @@ class TrailingBuyStrat(YourStrat):
                     # update uplimit
                     old_uplimit = trailing_buy["trailing_buy_order_uplimit"]
                     self.custom_info[metadata["pair"]]['trailing_buy']['trailing_buy_order_uplimit'] = min(current_price * (1 + trailing_buy_offset), self.custom_info[metadata["pair"]]['trailing_buy']['trailing_buy_order_uplimit'])
+                    self.custom_info[metadata["pair"]]['trailing_buy']['offset'] = trailing_buy_offset
                     self.trailing_buy_info(metadata["pair"], current_price)
                     logger.info(f'update trailing buy for {metadata["pair"]} at {old_uplimit} -> {self.custom_info[metadata["pair"]]["trailing_buy"]["trailing_buy_order_uplimit"]}')
                 elif current_price < trailing_buy['start_trailing_price']:
