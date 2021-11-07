@@ -31,7 +31,9 @@ class TrailingBuyStrat(YourStrat):
     # if process_only_new_candles = False, it will use ticker data and you won't need to change anything
 
     process_only_new_candles = False
-
+    trailing_expire_seconds = 3600
+    trailing_expire_seconds_uptrend = 90
+    
     custom_info = dict()
 
     # Trailing buy parameters
@@ -103,14 +105,14 @@ class TrailingBuyStrat(YourStrat):
         last_candle = dataframe.iloc[-1]
         current_time = datetime.datetime.now(datetime.timezone.utc)
         trailing_duration = current_time - trailing_buy['start_trailing_time']
-        if trailing_duration.total_seconds() > 3600:
+        if trailing_duration.total_seconds() > self.trailing_expire_seconds:
             if current_trailing_profit_ratio > 0 and last_candle['pre_buy'] == 1:
                 # more than 1h, price under first signal, buy signal still active -> buy
                 return 'forcebuy'
             else:
                 # wait for next signal
                 return None
-        elif trailing_duration.total_seconds() < 90 and current_trailing_profit_ratio < -0.02:
+        elif ((trailing_duration.total_seconds() < trailing_expire_seconds_uptrend) and (current_trailing_profit_ratio < -0.02)):
             # less than 90s and price is rising, buy
             return 'forcebuy'
 
