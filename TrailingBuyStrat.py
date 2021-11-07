@@ -8,7 +8,7 @@ from pandas import DataFrame, Series
 import logging
 import pandas as pd
 import numpy as np
-import datetime
+from datetime import datetime, timedelta, timezone
 from freqtrade.persistence import Trade
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class TrailingBuyStrat(YourStrat):
 
     def trailing_buy_info(self, pair: str, current_price: float):
         # current_time live, dry run
-        current_time = datetime.datetime.now(datetime.timezone.utc)
+        current_time = datetime.now(timezone.utc)
         if not self.debug_mode:
             return
         trailing_buy = self.trailing_buy(pair)
@@ -108,7 +108,7 @@ class TrailingBuyStrat(YourStrat):
         # example with duration and indicators
         # dry run, live only
         last_candle = dataframe.iloc[-1]
-        current_time = datetime.datetime.now(datetime.timezone.utc)
+        current_time = datetime.now(timezone.utc)
         trailing_duration = current_time - trailing_buy['start_trailing_time']
         if trailing_duration.total_seconds() > self.trailing_expire_seconds:
             if current_trailing_profit_ratio > 0 and last_candle['pre_buy'] == 1:
@@ -191,7 +191,7 @@ class TrailingBuyStrat(YourStrat):
                         'trailing_buy_order_uplimit': last_candle['close'],
                         'start_trailing_price': last_candle['close'],
                         'buy_tag': last_candle['buy_tag'] if 'buy_tag' in last_candle else 'buy signal',
-                        'start_trailing_time': datetime.datetime.now(datetime.timezone.utc),
+                        'start_trailing_time': datetime.now(timezone.utc),
                         'offset': 0,
                     }
                     self.trailing_buy_info(metadata["pair"], current_price)
