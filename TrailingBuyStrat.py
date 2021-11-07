@@ -117,7 +117,7 @@ class TrailingBuyStrat(YourStrat):
             else:
                 # wait for next signal
                 return None
-        elif ((trailing_duration.total_seconds() < trailing_expire_seconds_uptrend) and (current_trailing_profit_ratio < (-1 * self.min_uptrend_trailing_profit)) and self.trailing_buy_uptrend_enabled):
+        elif (self.trailing_buy_uptrend_enabled and (trailing_duration.total_seconds() < self.trailing_expire_seconds_uptrend) and (current_trailing_profit_ratio < (-1 * self.min_uptrend_trailing_profit))):
             # less than 90s and price is rising, buy
             return 'forcebuy'
 
