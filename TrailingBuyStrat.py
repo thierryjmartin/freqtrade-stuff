@@ -44,7 +44,8 @@ class TrailingBuyStrat(YourStrat):
     min_uptrend_trailing_profit = 0.02
 
     debug_mode = True
-    trailing_buy_max = 0.1  # stop trailing buy if current_price > starting_price * (1+trailing_buy_max)
+    trailing_buy_max_stop = 0.1  # stop trailing buy if current_price > starting_price * (1+trailing_buy_max_stop)
+    trailing_buy_max_buy = 0.002  # buy if price between uplimit (=min of serie (current_price * (1 + trailing_buy_offset())) and (start_price * 1+trailing_buy_max_buy))
 
     init_trailing_dict = {
         'trailing_buy_order_started': False,
@@ -212,14 +213,14 @@ class TrailingBuyStrat(YourStrat):
                     self.custom_info_trail_buy[metadata["pair"]]['trailing_buy']['offset'] = trailing_buy_offset
                     self.trailing_buy_info(metadata["pair"], current_price)
                     logger.info(f'update trailing buy for {metadata["pair"]} at {old_uplimit} -> {self.custom_info_trail_buy[metadata["pair"]]["trailing_buy"]["trailing_buy_order_uplimit"]}')
-                elif current_price < trailing_buy['start_trailing_price']:
+                elif current_price < (trailing_buy['start_trailing_price'] * (1 + self.trailing_buy_max_buy)):
                     # buy ! current price > uplimit && lower thant starting price
                     self.buy(dataframe, metadata['pair'], current_price, trailing_buy['buy_tag'])
-                elif current_price > (trailing_buy['start_trailing_price'] * (1 + self.trailing_buy_max)):
+                elif current_price > (trailing_buy['start_trailing_price'] * (1 + self.trailing_buy_max_stop)):
                     # stop trailing buy because price is too high
                     self.trailing_buy(metadata['pair'], reinit=True)
                     self.trailing_buy_info(metadata["pair"], current_price)
-                    logger.info(f'STOP trailing buy for {metadata["pair"]} because of the price is higher than starting price * {1 + self.trailing_buy_max}')
+                    logger.info(f'STOP trailing buy for {metadata["pair"]} because of the price is higher than starting price * {1 + self.trailing_buy_max_stop}')
                 else:
                     # uplimit > current_price > max_price, continue trailing and wait for the price to go down
                     self.trailing_buy_info(metadata["pair"], current_price)
