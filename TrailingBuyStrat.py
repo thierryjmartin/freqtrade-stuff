@@ -19,7 +19,7 @@ class YourStrat(IStrategy):
     pass
 
 class TrailingBuyStrat(YourStrat):
-    # Orignal idea by @MukavaValkku, code by @tirail
+    # Orignal idea by @MukavaValkku, code by @tirail and @stash86
     #
     # This class is designed to inherit from yours and starts trailing buy with your buy signals
     # Trailing buy starts at any buy signal
