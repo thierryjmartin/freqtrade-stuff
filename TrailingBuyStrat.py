@@ -70,14 +70,21 @@ class TrailingBuyStrat(YourStrat):
         if not self.debug_mode:
             return
         trailing_buy = self.trailing_buy(pair)
-        logger.info(
-            f"pair: {pair} : "
-            f"start: {trailing_buy['start_trailing_price']:.4f}, "
-           f"duration: {current_time - trailing_buy['start_trailing_time']}, "
-           f"current: {current_price:.4f}, "
-           f"uplimit: {trailing_buy['trailing_buy_order_uplimit']:.4f}, "
-           f"profit: {self.current_trailing_profit_ratio(pair, current_price)*100:.2f}%, "
-           f"offset: {trailing_buy['offset']}")
+
+        duration = 0
+        try:
+            duration = (current_time - trailing_buy['start_trailing_time'])
+        except TypeError:
+            duration = 0
+        finally:
+            logger.info(
+                f"pair: {pair} : "
+                f"start: {trailing_buy['start_trailing_price']:.4f}, "
+                f"duration: {duration}, "
+                f"current: {current_price:.4f}, "
+                f"uplimit: {trailing_buy['trailing_buy_order_uplimit']:.4f}, "
+                f"profit: {self.current_trailing_profit_ratio(pair, current_price)*100:.2f}%, "
+                f"offset: {trailing_buy['offset']}")
 
     def current_trailing_profit_ratio(self, pair: str, current_price: float) -> float:
         trailing_buy = self.trailing_buy(pair)
