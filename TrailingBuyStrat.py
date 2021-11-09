@@ -235,9 +235,9 @@ class TrailingBuyStrat(YourStrat):
         return dataframe
 
     def get_current_price(self, pair: str, last_candle) -> float:
-        if not self.process_only_new_candles:
+        if self.process_only_new_candles:
+            current_price = last_candle['close']
+        else:
             ticker = self.dp.ticker(pair)
             current_price = ticker['last']
-        else:
-            current_price = last_candle['close']
         return current_price
