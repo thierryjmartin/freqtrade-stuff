@@ -276,7 +276,10 @@ class SuperBuy(Uptrend):
         if self.config['runmode'].value in ('backtest', 'hyperopt') and self.buy_signal_already_printed != buy_conds:
             print(buy_conds)
             self.buy_signal_already_printed = buy_conds
-        buy_conds = [eval(buy_cond, globals(), {'dataframe': dataframe, 'best_buy_point': self.best_buy_point}) for buy_cond in buy_conds]
+        try:
+            buy_conds = [eval(buy_cond, globals(), {'dataframe': dataframe, 'best_buy_point': self.best_buy_point}) for buy_cond in buy_conds]
+        except:
+            return []
         return buy_conds
 
     def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
