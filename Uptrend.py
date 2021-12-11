@@ -115,17 +115,19 @@ class Uptrend(IStrategy):
             'sell'] = 1
         return dataframe
 
+
 import random
+from functools import reduce
 
 class SuperBuy(Uptrend):
     """
-    Idea is to build random buy signales from populate_indicators, with luck we'll get a good buy signal
-    """
+	Idea is to build random buy signales from populate_indicators, with luck we'll get a good buy signal
+	"""
 
-    generator = IntParameter(0, 100000000000, default=99295874569, optimize=True, space='buy') # generate unique matrix of conditions for your dataframe
-    operators_used_to_compare_between_columns = IntParameter(1, 4, default=3, optimize=True, space='buy') # number of conditions you will keep to build buy signal
-    operators_used_to_with_best_point = IntParameter(0, 2, default=1, optimize=True, space='buy') # number of conditions you will keep to build buy signal
-    condition_selector = IntParameter(0, 100, default=50, optimize=True, space='buy') # how to select the desired conditions beteween all conditions generated (seed random)
+    generator = IntParameter(0, 100000000000, default=99295874569, optimize=True, space='buy')  # generate unique matrix of conditions for your dataframe
+    operators_used_to_compare_between_columns = IntParameter(0, 3, default=3, optimize=True, space='buy')  # number of conditions you will keep to build buy signal
+    operators_used_to_with_best_point = IntParameter(0, 3, default=1, optimize=True, space='buy')  # number of conditions you will keep to build buy signal
+    condition_selector = IntParameter(0, 100, default=50, optimize=True, space='buy')  # how to select the desired conditions beteween all conditions generated (seed random)
 
     best_buy_point = None
     buy_signal_already_printed = False
@@ -143,7 +145,7 @@ class SuperBuy(Uptrend):
         5: '!='
     }
 
-    def find_best_entry_point(self, dataframe: DataFrame, metadata: dict, lookehead_candles :int = 10) -> list:
+    def find_best_entry_point(self, dataframe: DataFrame, metadata: dict, lookehead_candles: int = 10) -> list:
         workdataframe = dataframe.copy()
         workdataframe['higher_high'] = workdataframe['high'].rolling(lookehead_candles).max()
         workdataframe['close_shifted_lookehead'] = workdataframe['close'].shift(lookehead_candles)
@@ -253,8 +255,8 @@ class SuperBuy(Uptrend):
             if int(generator) not in self.operators:
                 # pass if no operator is selected
                 continue
-            #print("(dataframe['" + column + "'] " + self.operators[int(generator)] + " best_buy_point['" + column + "']))")
-            #print(eval("best_buy_point['" + column + "']"))
+            # print("(dataframe['" + column + "'] " + self.operators[int(generator)] + " best_buy_point['" + column + "']))")
+            # print(eval("best_buy_point['" + column + "']"))
             buy_conds_best_point.append(
                 "(dataframe['" + column + "'] " + self.operators[int(generator)] + " " + str(self.best_buy_point[column]) + ")"
             )
@@ -284,24 +286,17 @@ class SuperBuy(Uptrend):
 
     def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         buy_conds = self.generate_superbuy_signal(dataframe, metadata)
-        #print(buy_conds)
-        #buy_conds.append((dataframe['volume'] == 0))
-        # TODO
-        """
-        is_additional_check = {
-            *indicators we wanna use suitable for our wanted market situation*
-        }
 
-        if conditions:
+        is_additional_check = (
+            (dataframe['bb_middleband3'] <= dataframe['ema_offset_buy2'])
+        )
+
+        if buy_conds:
             dataframe.loc[
-                            is_additional_check
-                            &
-                            reduce(lambda x, y: x | y, conditions)
+                is_additional_check
+                &
+                reduce(lambda x, y: x & y, buy_conds)
 
-                        , 'buy' ] = 1"""
-
-        dataframe['buy'] = 1
-        for condition in buy_conds:
-            dataframe.loc[~condition, 'buy'] = 0
+                , 'buy'] = 1
 
         return dataframe
