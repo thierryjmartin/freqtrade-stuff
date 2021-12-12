@@ -38,6 +38,14 @@ class TrailingBuyStrat(YourStrat):
     trailing_buy_order_enabled = True
     trailing_expire_seconds = 300
 
+    # list of buy tags which need a fast buy
+    perfect_buy_tags = ['ewo_low']
+    def is_perfect_buy_tag(self, buy_tag: str):
+        for perfect_buy_tag in self.perfect_buy_tags:
+            if buy_tag in perfect_buy_tag:
+                return True
+        return False
+
     # If the current candle goes above min_uptrend_trailing_profit % before trailing_expire_seconds_uptrend seconds, buy the coin
     trailing_buy_uptrend_enabled = False
     trailing_expire_seconds_uptrend = 90
@@ -118,7 +126,9 @@ class TrailingBuyStrat(YourStrat):
         last_candle = dataframe.iloc[-1]
         current_time = datetime.now(timezone.utc)
         trailing_duration = current_time - trailing_buy['start_trailing_time']
-        if trailing_duration.total_seconds() > self.trailing_expire_seconds:
+        if self.is_perfect_buy_tag(trailing_buy['buy_tag']):
+            return 'forcebuy'
+        elif trailing_duration.total_seconds() > self.trailing_expire_seconds:
             if current_trailing_profit_ratio > 0 and last_candle['pre_buy'] == 1:
                 # more than 1h, price under first signal, buy signal still active -> buy
                 return 'forcebuy'
