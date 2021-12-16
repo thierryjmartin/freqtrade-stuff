@@ -253,10 +253,14 @@ class SuperBuy(Uptrend):
         # get best buy point for first pair, will indicators will be used for each pair
         # THE PAIR YOU WANT TO USE AS REFERENCE MUST BE FIRST IN YOUR PAIRLIST !!!!!!!!
         if self.best_buy_point is None:
-            print(f"pair used as reference is {metadata['pair']}")
-            top_index = self.find_best_entry_point(dataframe, metadata)["shifted_index"].iloc[0]
-            print(top_index)
-            self.best_buy_point = dataframe.iloc[top_index]
+            try:
+                top_index = self.find_best_entry_point(dataframe, metadata)["shifted_index"].iloc[0]
+                self.best_buy_point = dataframe.iloc[top_index]
+                print(f"pair used as reference is {metadata['pair']}")
+                print(top_index)
+            except:
+                self.best_buy_point = None
+                pass
 
         # sort columns by category
         if len(self.columns_to_compare_to_best_point) == 0 and len(self.columns_to_compare_to_volume) == 0 and len(self.columns_to_compare_to_price) == 0:
@@ -272,9 +276,10 @@ class SuperBuy(Uptrend):
             print(f"columns_to_compare_to_volume : {self.columns_to_compare_to_volume}")
 
             # remove NAN columns for best point...
-            for column in self.columns_to_compare_to_best_point:
-                if str(self.best_buy_point[column]) == 'nan':
-                    self.columns_to_compare_to_best_point.remove(column)
+            if self.best_buy_point is not None:
+                for column in self.columns_to_compare_to_best_point:
+                    if str(self.best_buy_point[column]) == 'nan':
+                        self.columns_to_compare_to_best_point.remove(column)
             print(f"columns_to_compare_to_best_point : {self.columns_to_compare_to_best_point}")
 
         # generate matrix of all operators for all combinations of columns and create buy conditions
@@ -314,6 +319,8 @@ class SuperBuy(Uptrend):
         buy_conds_best_point = []
         # generate buy conditions with best buy point
         for column in self.columns_to_compare_to_best_point:
+            if self.best_buy_point is None:
+                continue
             if index > len(generators):
                 break
             generator = generators[index]
