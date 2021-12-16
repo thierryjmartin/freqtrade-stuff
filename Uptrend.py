@@ -4,7 +4,7 @@
 # --- Do not remove these libs ---
 import numpy as np  # noqa
 import pandas as pd  # noqa
-from pandas import DataFrame
+from pandas import DataFrame, Series  # noqa
 
 from freqtrade.strategy import (BooleanParameter, CategoricalParameter, DecimalParameter,
                                 IStrategy, IntParameter)
@@ -84,6 +84,8 @@ class Uptrend(IStrategy):
         dataframe['mama_diff'] = dataframe['mama'] - dataframe['fama']
         dataframe['mama_diff_ratio'] = dataframe['mama_diff'] / dataframe['hl2']
 
+        dataframe['zero'] = 0
+
         dataframe['rsi'] = ta.RSI(dataframe['close'], timeperiod=14)
 
         # EMA 50
@@ -130,6 +132,7 @@ class SuperBuy(Uptrend):
     condition_selector = IntParameter(0, 100, default=50, optimize=True, space='buy')  # how to select the desired conditions beteween all conditions generated (seed random)
 
     best_buy_point = None
+    best_buy_point_dict = dict()
     buy_signal_already_printed = False
 
     columns_to_compare_to_best_point = []
@@ -145,14 +148,68 @@ class SuperBuy(Uptrend):
         5: '!='
     }
 
-    def find_best_entry_point(self, dataframe: DataFrame, metadata: dict, lookehead_candles: int = 10) -> list:
+    top_index_criteria = {
+        'min_close_hh_ratio': 0.05,
+        'max_candles_to_get_ratio': 10,
+        'candles_after_dip_to_buy': 0
+    }
+
+    def find_best_entry_point(self, dataframe: DataFrame, metadata: dict) -> Series:
+        lookahead_candles = self.top_index_criteria['max_candles_to_get_ratio']
+
         workdataframe = dataframe.copy()
-        workdataframe['higher_high'] = workdataframe['high'].rolling(lookehead_candles).max()
-        workdataframe['close_shifted_lookehead'] = workdataframe['close'].shift(lookehead_candles)
+        workdataframe['higher_high'] = workdataframe['high'].rolling(lookahead_candles).max()
+        workdataframe['close_shifted_lookehead'] = workdataframe['close'].shift(lookahead_candles)
         workdataframe['higher_high_close_ratio'] = workdataframe['higher_high'] / workdataframe['close_shifted_lookehead']
-        top_index = workdataframe['higher_high_close_ratio'].idxmax() - lookehead_candles
-        print(f"top index is : {top_index}, Date : {workdataframe['date'][top_index]}, HH : {workdataframe['higher_high'][top_index]}, Close : {workdataframe['close'][top_index]}")
-        return top_index
+
+        df_mask = workdataframe['higher_high_close_ratio'] >= 1 + self.top_index_criteria['min_close_hh_ratio']
+        print(1 + self.top_index_criteria['min_close_hh_ratio'])
+        filtered_df = workdataframe[df_mask]
+
+        filtered_df = filtered_df.sort_values(by=["higher_high_close_ratio"], ascending=False)
+        filtered_df["shifted_index"] = filtered_df.index - lookahead_candles + self.top_index_criteria['candles_after_dip_to_buy']
+
+        if filtered_df.empty:
+            print("No entry point found for {}".format(metadata['pair']))
+            return filtered_df
+        top_index = filtered_df['higher_high_close_ratio'].idxmax() - lookahead_candles
+        print(f"top index is : {top_index}, Date : {workdataframe['date'][top_index]}, HH : {workdataframe['higher_high'][top_index]}, Close : {workdataframe['close'][top_index]}, %profit : {workdataframe['higher_high_close_ratio'][top_index]}")
+        #print(filtered_df["shifted_index"], filtered_df["higher_high_close_ratio"])
+        return filtered_df
+
+    def common_points_for_every_best_entry(self, dataframe: DataFrame, metadata: dict, columns: list) -> list:
+        full_pairlist = self.dp.current_whitelist()
+        current_pair = metadata['pair']
+
+        if current_pair not in self.best_buy_point_dict:
+            self.best_buy_point_dict[current_pair] = self.find_best_entry_point(dataframe, metadata)
+
+        for pair in full_pairlist:
+            current_df = self.dp.get_pair_dataframe(pair=pair, timeframe=self.timeframe)
+            if (pair not in self.best_buy_point_dict) and not current_df.empty:
+                print("No entry point found for {}".format(pair))
+                return []
+
+        all_points = None
+        for pair in full_pairlist:
+            # NO DATA FOR THIS PAIR
+            if not pair in self.best_buy_point_dict:
+                continue
+            if all_points is None:
+                all_points = self.best_buy_point_dict[pair]
+            else:
+                all_points = all_points.append(self.best_buy_point_dict[pair])
+
+        #print(all_points)
+
+        print("HERE COMMON VALUES FOR ALL BEST POINTS !!!!!!!!!!")
+        for column in columns:
+            if all_points[column].nunique() == 1:
+                print(column)
+                print(all_points[column].iloc[0])
+
+        print("END OF COMMON VALUES FOR ALL BEST POINTS !!!!!!!!!!")
+        return []
 
     def is_same_dimension_as_price(self, dataframe: DataFrame, column_name: str) -> bool:
         if dataframe['close'].dtype != dataframe[column_name].dtype:
@@ -190,7 +247,9 @@ class SuperBuy(Uptrend):
         # THE PAIR YOU WANT TO USE AS REFERENCE MUST BE FIRST IN YOUR PAIRLIST !!!!!!!!
         if self.best_buy_point is None:
             print(f"pair used as reference is {metadata['pair']}")
-            top_index = self.find_best_entry_point(dataframe, metadata)
+            top_index = self.find_best_entry_point(dataframe, metadata)["shifted_index"].iloc[0]
+            print("COUCOUCOCUCOCU")
+            print(top_index)
             self.best_buy_point = dataframe.iloc[top_index]
 
         # sort columns by category
@@ -208,8 +267,11 @@ class SuperBuy(Uptrend):
 
             # remove NAN columns for best point...
             for column in self.columns_to_compare_to_best_point:
-                if str(self.best_buy_point[column]) == 'nan':
-                    self.columns_to_compare_to_best_point.remove(column)
+                for column in self.columns_to_compare_to_best_point:
+                    if str(self.best_buy_point[column]) == 'nan':
+                        self.columns_to_compare_to_best_point.remove(column)
+
+        self.common_points_for_every_best_entry(dataframe, metadata, columns)
 
         # generate matrix of all operators for all combinations of columns and create buy conditions
         index = 0
@@ -288,7 +350,7 @@ class SuperBuy(Uptrend):
         buy_conds = self.generate_superbuy_signal(dataframe, metadata)
 
         is_additional_check = (
-            (dataframe['bb_middleband3'] <= dataframe['ema_offset_buy2'])
+            (dataframe['volume'] > 0)
         )
 
         if buy_conds:
