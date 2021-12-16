@@ -133,6 +133,7 @@ class SuperBuy(Uptrend):
 
     best_buy_point = None
     best_buy_point_dict = dict()
+    all_points_dict = dict()
     buy_signal_already_printed = False
 
     columns = []
@@ -153,7 +154,7 @@ class SuperBuy(Uptrend):
         'min_close_hh_ratio': 0.1,
         'max_candles_to_get_ratio': 10,
         'candles_after_dip_to_buy': 0,
-        'print_parameter_value_if_in_more_than_x_percent_of_top_index': 90,
+        'print_parameter_value_if_in_more_than_x_percent_of_top_index': 5,
     }
 
     def find_best_entry_point(self, dataframe: DataFrame, metadata: dict) -> Series:
@@ -184,6 +185,7 @@ class SuperBuy(Uptrend):
 
         if current_pair not in self.best_buy_point_dict:
             self.best_buy_point_dict[current_pair] = self.find_best_entry_point(dataframe, metadata)
+            self.all_points_dict[current_pair] = dataframe.copy()
 
         for pair in full_pairlist:
             current_df = self.dp.get_pair_dataframe(pair=pair, timeframe=self.timeframe)
@@ -191,30 +193,40 @@ class SuperBuy(Uptrend):
                 # print("No entry point found for {}".format(pair))
                 return []
 
+        all_best_points = None
         all_points = None
         for pair in full_pairlist:
             # NO DATA FOR THIS PAIR
             if not pair in self.best_buy_point_dict:
                 continue
-            if all_points is None:
-                all_points = self.best_buy_point_dict[pair]
+            if all_best_points is None:
+                all_best_points = self.best_buy_point_dict[pair]
+                all_points = self.all_points_dict[pair]
             else:
-                all_points = all_points.append(self.best_buy_point_dict[pair])
+                all_best_points = all_best_points.append(self.best_buy_point_dict[pair])
+                all_points = all_points.append(self.all_points_dict[pair])
 
-        # print(all_points)
         if self.config['runmode'].value in ('backtest'):
             print("HERE COMMON VALUES FOR ALL BEST POINTS !!!!!!!!!!")
+            res = list()
             for column in columns:
-                count = all_points[column].value_counts()
-                df_mask = count >= self.top_index_criteria['print_parameter_value_if_in_more_than_x_percent_of_top_index'] / 100 * all_points.shape[0]
+                all_points_values_count = all_points[column].value_counts()
+                count = all_best_points[column].value_counts()
+                df_mask = count >= self.top_index_criteria['print_parameter_value_if_in_more_than_x_percent_of_top_index'] / 100 * all_best_points.shape[0]
                 count = count[df_mask]
                 if column in ['buy', 'buy_tag']:
                     print(column)
-                    print(all_points[column].value_counts())
+                    print(all_best_points[column].value_counts())
                 elif not count.empty:
-                    print(column)
-                    print(count)
-
+                    res.append({
+                        'column': column,
+                        'value': count.index[0],
+                        'ratio_for_best': count.iloc[0] / all_best_points.shape[0],
+                        'ratio_for_all': all_points_values_count[count.index[0]] / all_points.shape[0],
+                        'ratio_diff': abs(count.iloc[0] / all_points_values_count.shape[0] - count.iloc[0] / all_best_points.shape[0])
+                    })
+            for item in sorted(res, key=lambda x: x['ratio_diff']):
+                print(f"{item['column']}: {item['value']}, {100 * item['ratio_for_best']:.2f}% in best vs {100 * item['ratio_for_all']:.2f}% average")
             print("END OF COMMON VALUES FOR ALL BEST POINTS !!!!!!!!!!")
         return []
 
@@ -365,7 +377,11 @@ class SuperBuy(Uptrend):
             self.common_points_for_every_best_entry(dataframe, metadata, self.columns + ['buy', 'buy_tag'])
         elif self.config['runmode'].value in ('hyperopt'):  # hyperopt, we want to test new buy signals
             is_additional_check = (
-                (dataframe['volume'] > 0)
+                    (dataframe['volume'] > 0) &
+                    (dataframe['pmx'] == 'up') &
+                    (dataframe['ema_50_below_ema_200'] == 0) &
+                    (dataframe['ema_25_above_ema_200'] == 1) &
+                    (dataframe['rsi_lower_30'] == 0)
             )
 
             if buy_conds:
