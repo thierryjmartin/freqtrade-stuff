@@ -135,6 +135,7 @@ class SuperBuy(Uptrend):
     best_buy_point_dict = dict()
     buy_signal_already_printed = False
 
+    columns = []
     columns_to_compare_to_best_point = []
     columns_to_compare_to_volume = []
     columns_to_compare_to_price = []
@@ -173,9 +174,8 @@ class SuperBuy(Uptrend):
         if filtered_df.empty:
             print("No entry point found for {}".format(metadata['pair']))
             return filtered_df
-        top_index = filtered_df['higher_high_close_ratio'].idxmax() - lookahead_candles
-        print(f"{metadata['pair']} : top index is : {top_index}, Date : {workdataframe['date'][top_index]}, HH : {workdataframe['higher_high'][top_index]}, Close : {workdataframe['close'][top_index]}, %profit : {workdataframe['higher_high_close_ratio'][top_index]}")
-        # print(filtered_df["shifted_index"], filtered_df["higher_high_close_ratio"])
+        print(metadata['pair'])
+        print(filtered_df[["date", "shifted_index", "higher_high_close_ratio", "close_shifted_lookehead", "close", "higher_high"]])
         return filtered_df
 
     def common_points_for_every_best_entry(self, dataframe: DataFrame, metadata: dict, columns: list) -> list:
@@ -208,9 +208,13 @@ class SuperBuy(Uptrend):
                 count = all_points[column].value_counts()
                 df_mask = count >= self.top_index_criteria['print_parameter_value_if_in_more_than_x_percent_of_top_index'] / 100 * all_points.shape[0]
                 count = count[df_mask]
-                if not count.empty:
+                if column in ['buy', 'buy_tag']:
+                    print(column)
+                    print(all_points[column].value_counts())
+                elif not count.empty:
                     print(column)
                     print(count)
+
             print("END OF COMMON VALUES FOR ALL BEST POINTS !!!!!!!!!!")
         return []
 
@@ -256,6 +260,7 @@ class SuperBuy(Uptrend):
 
         # sort columns by category
         if len(self.columns_to_compare_to_best_point) == 0 and len(self.columns_to_compare_to_volume) == 0 and len(self.columns_to_compare_to_price) == 0:
+            self.columns = columns
             for column in columns:
                 if self.is_same_dimension_as_price(dataframe, column):
                     self.columns_to_compare_to_price.append(column)
@@ -271,9 +276,6 @@ class SuperBuy(Uptrend):
                 if str(self.best_buy_point[column]) == 'nan':
                     self.columns_to_compare_to_best_point.remove(column)
             print(f"columns_to_compare_to_best_point : {self.columns_to_compare_to_best_point}")
-
-        if self.config['runmode'].value in ('backtest'):
-            self.common_points_for_every_best_entry(dataframe, metadata, columns)
 
         # generate matrix of all operators for all combinations of columns and create buy conditions
         index = 0
@@ -351,16 +353,20 @@ class SuperBuy(Uptrend):
     def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         buy_conds = self.generate_superbuy_signal(dataframe, metadata)
 
-        is_additional_check = (
-            (dataframe['volume'] > 0)
-        )
+        if self.config['runmode'].value in ('backtest'):  # backtest, we want to check must common buy tags...
+            dataframe = super().populate_buy_trend(dataframe, metadata)  # get buy tags
+            self.common_points_for_every_best_entry(dataframe, metadata, self.columns + ['buy', 'buy_tag'])
+        elif self.config['runmode'].value in ('hyperopt'):  # hyperopt, we want to test new buy signals
+            is_additional_check = (
+                (dataframe['volume'] > 0)
+            )
 
-        if buy_conds:
-            dataframe.loc[
-                is_additional_check
-                &
-                reduce(lambda x, y: x & y, buy_conds)
+            if buy_conds:
+                dataframe.loc[
+                    is_additional_check
+                    &
+                    reduce(lambda x, y: x & y, buy_conds)
 
-                , 'buy'] = 1
-
+                    , 'buy'] = 1
+        # THIS STRAT SHOULD NOT BE USED IN LIVE/DRYRUN MODE
         return dataframe
