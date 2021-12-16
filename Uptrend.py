@@ -149,9 +149,10 @@ class SuperBuy(Uptrend):
     }
 
     top_index_criteria = {
-        'min_close_hh_ratio': 0.05,
+        'min_close_hh_ratio': 0.1,
         'max_candles_to_get_ratio': 10,
-        'candles_after_dip_to_buy': 0
+        'candles_after_dip_to_buy': 0,
+        'print_parameter_value_if_in_more_than_x_percent_of_top_index': 90,
     }
 
     def find_best_entry_point(self, dataframe: DataFrame, metadata: dict) -> Series:
@@ -173,8 +174,8 @@ class SuperBuy(Uptrend):
             print("No entry point found for {}".format(metadata['pair']))
             return filtered_df
         top_index = filtered_df['higher_high_close_ratio'].idxmax() - lookahead_candles
-        print(f"top index is : {top_index}, Date : {workdataframe['date'][top_index]}, HH : {workdataframe['higher_high'][top_index]}, Close : {workdataframe['close'][top_index]}, %profit : {workdataframe['higher_high_close_ratio'][top_index]}")
-        #print(filtered_df["shifted_index"], filtered_df["higher_high_close_ratio"])
+        print(f"{metadata['pair']} : top index is : {top_index}, Date : {workdataframe['date'][top_index]}, HH : {workdataframe['higher_high'][top_index]}, Close : {workdataframe['close'][top_index]}, %profit : {workdataframe['higher_high_close_ratio'][top_index]}")
+        # print(filtered_df["shifted_index"], filtered_df["higher_high_close_ratio"])
         return filtered_df
 
     def common_points_for_every_best_entry(self, dataframe: DataFrame, metadata: dict, columns: list) -> list:
@@ -187,7 +188,7 @@ class SuperBuy(Uptrend):
         for pair in full_pairlist:
             current_df = self.dp.get_pair_dataframe(pair=pair, timeframe=self.timeframe)
             if (pair not in self.best_buy_point_dict) and not current_df.empty:
-                print("No entry point found for {}".format(pair))
+                # print("No entry point found for {}".format(pair))
                 return []
 
         all_points = None
@@ -200,15 +201,17 @@ class SuperBuy(Uptrend):
             else:
                 all_points = all_points.append(self.best_buy_point_dict[pair])
 
-        #print(all_points)
-
-        print("HERE COMMON VALUES FOR ALL BEST POINTS !!!!!!!!!!")
-        for column in columns:
-            if all_points[column].nunique() == 1:
-                print(column)
-                print(all_points[column].iloc[0])
-
-        print("END OF COMMON VALUES FOR ALL BEST POINTS !!!!!!!!!!")
+        # print(all_points)
+        if self.config['runmode'].value in ('backtest'):
+            print("HERE COMMON VALUES FOR ALL BEST POINTS !!!!!!!!!!")
+            for column in columns:
+                count = all_points[column].value_counts()
+                df_mask = count >= self.top_index_criteria['print_parameter_value_if_in_more_than_x_percent_of_top_index'] / 100 * all_points.shape[0]
+                count = count[df_mask]
+                if not count.empty:
+                    print(column)
+                    print(count)
+            print("END OF COMMON VALUES FOR ALL BEST POINTS !!!!!!!!!!")
         return []
 
     def is_same_dimension_as_price(self, dataframe: DataFrame, column_name: str) -> bool:
@@ -248,7 +251,6 @@ class SuperBuy(Uptrend):
         if self.best_buy_point is None:
             print(f"pair used as reference is {metadata['pair']}")
             top_index = self.find_best_entry_point(dataframe, metadata)["shifted_index"].iloc[0]
-            print("COUCOUCOCUCOCU")
             print(top_index)
             self.best_buy_point = dataframe.iloc[top_index]
 
@@ -261,17 +263,17 @@ class SuperBuy(Uptrend):
                     self.columns_to_compare_to_volume.append(column)
                 else:
                     self.columns_to_compare_to_best_point.append(column)
-            print(f"columns_to_compare_to_best_point : {self.columns_to_compare_to_best_point}")
             print(f"columns_to_compare_to_price : {self.columns_to_compare_to_price}")
             print(f"columns_to_compare_to_volume : {self.columns_to_compare_to_volume}")
 
             # remove NAN columns for best point...
             for column in self.columns_to_compare_to_best_point:
-                for column in self.columns_to_compare_to_best_point:
-                    if str(self.best_buy_point[column]) == 'nan':
-                        self.columns_to_compare_to_best_point.remove(column)
+                if str(self.best_buy_point[column]) == 'nan':
+                    self.columns_to_compare_to_best_point.remove(column)
+            print(f"columns_to_compare_to_best_point : {self.columns_to_compare_to_best_point}")
 
-        self.common_points_for_every_best_entry(dataframe, metadata, columns)
+        if self.config['runmode'].value in ('backtest'):
+            self.common_points_for_every_best_entry(dataframe, metadata, columns)
 
         # generate matrix of all operators for all combinations of columns and create buy conditions
         index = 0
