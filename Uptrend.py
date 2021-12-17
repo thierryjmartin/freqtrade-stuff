@@ -154,7 +154,7 @@ class SuperBuy(Uptrend):
         'min_close_hh_ratio': 0.1,
         'max_candles_to_get_ratio': 10,
         'candles_after_dip_to_buy': 0,
-        'print_parameter_value_if_in_more_than_x_percent_of_top_index': 5,
+        'print_parameter_value_if_in_more_than_x_percent_of_top_index': 80,
     }
 
     def find_best_entry_point(self, dataframe: DataFrame, metadata: dict) -> Series:
@@ -212,7 +212,8 @@ class SuperBuy(Uptrend):
             for column in columns:
                 all_points_values_count = all_points[column].value_counts()
                 count = all_best_points[column].value_counts()
-                df_mask = count >= self.top_index_criteria['print_parameter_value_if_in_more_than_x_percent_of_top_index'] / 100 * all_best_points.shape[0]
+                # keep only values in more than x% of all points
+                df_mask = count >= 5 / 100 * all_best_points.shape[0]
                 count = count[df_mask]
                 if column in ['buy', 'buy_tag']:
                     print(column)
@@ -223,11 +224,18 @@ class SuperBuy(Uptrend):
                         'value': count.index[0],
                         'ratio_for_best': count.iloc[0] / all_best_points.shape[0],
                         'ratio_for_all': all_points_values_count[count.index[0]] / all_points.shape[0],
-                        'ratio_diff': abs(count.iloc[0] / all_points_values_count.shape[0] - count.iloc[0] / all_best_points.shape[0])
+                        'ratio_diff': count.iloc[0] / all_best_points.shape[0] - all_points_values_count[count.index[0]] / all_points.shape[0]
                     })
             for item in sorted(res, key=lambda x: x['ratio_diff']):
-                print(f"{item['column']}: {item['value']}, {100 * item['ratio_for_best']:.2f}% in best vs {100 * item['ratio_for_all']:.2f}% average")
+                print(f"({item['column']} == {item['value']}), {100 * item['ratio_for_best']:.2f}% in best vs {100 * item['ratio_for_all']:.2f}% average")
             print("END OF COMMON VALUES FOR ALL BEST POINTS !!!!!!!!!!")
+            print("Suggested buy signal:")
+            for item in sorted(res, key=lambda x: x['ratio_diff']):
+                # print((((100 * item['ratio_for_best']) - (100 * item['ratio_for_all']))))
+                # print(item['ratio_for_best'])
+                if (((100 * item['ratio_for_best']) - (100 * item['ratio_for_all'])) > 10) and (100 * item['ratio_for_best']) > self.top_index_criteria['print_parameter_value_if_in_more_than_x_percent_of_top_index']:
+                    print(f"({item['column']} == {item['value']}) &")
+
         return []
 
     def is_same_dimension_as_price(self, dataframe: DataFrame, column_name: str) -> bool:
@@ -381,7 +389,9 @@ class SuperBuy(Uptrend):
                     (dataframe['pmx'] == 'up') &
                     (dataframe['ema_50_below_ema_200'] == 0) &
                     (dataframe['ema_25_above_ema_200'] == 1) &
-                    (dataframe['rsi_lower_30'] == 0)
+                    (dataframe['rsi_lower_30'] == 0) &
+                    (dataframe['srsi_fk'] == 100.0) &
+                    (dataframe['price_at_sup1_1h'] == False)
             )
 
             if buy_conds:
