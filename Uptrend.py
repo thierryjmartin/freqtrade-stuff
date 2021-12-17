@@ -234,7 +234,7 @@ class SuperBuy(Uptrend):
                 # print((((100 * item['ratio_for_best']) - (100 * item['ratio_for_all']))))
                 # print(item['ratio_for_best'])
                 if (((100 * item['ratio_for_best']) - (100 * item['ratio_for_all'])) > 10) and (100 * item['ratio_for_best']) > self.top_index_criteria['print_parameter_value_if_in_more_than_x_percent_of_top_index']:
-                    print(f"({item['column']} == {item['value']}) &")
+                    print(f"(dataframe['{item['column']}'] == {item['value']}) &")
 
         return []
 
