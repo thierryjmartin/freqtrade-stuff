@@ -1,6 +1,53 @@
 # pragma pylint: disable=missing-docstring, invalid-name, pointless-string-statement
 # flake8: noqa: F401
 
+"""
+ENHANCED UPTREND STRATEGY - OPTIMIZED VERSION
+
+Improvements made:
+===================
+1. ADVANCED INDICATORS:
+   - Multiple RSI periods (7, 14, 21) for better momentum analysis
+   - MACD for trend confirmation
+   - Bollinger Bands for volatility and support/resistance
+   - Stochastic for overbought/oversold conditions
+   - ADX for trend strength measurement
+   - CCI for cyclical trend detection
+   - MFI (Money Flow Index) for volume-weighted momentum
+   - ATR for dynamic volatility measurement
+   - Multiple EMAs (12, 26, 50, 100, 200) for trend analysis
+
+2. IMPROVED BUY SIGNALS:
+   - Multi-indicator confirmation (MAMA/FAMA + RSI + MACD + Volume + EMAs)
+   - Trend strength validation (ADX > 20)
+   - Volume confirmation (above average)
+   - Momentum confirmation (MACD bullish, RSI rising)
+   - Price action filters (not overextended)
+
+3. IMPROVED SELL SIGNALS:
+   - Multiple exit conditions for better profit protection
+   - Overbought detection (RSI, Stochastic, MFI)
+   - Trend reversal detection (MACD crossover, EMA break)
+   - Volatility-based exits (Bollinger Bands)
+
+4. ENHANCED RISK MANAGEMENT:
+   - Optimized ROI table with 5 levels (15% to 2%)
+   - Dynamic trailing stoploss with 8 profit levels
+   - Improved stoploss from -10% to -12%
+   - 4 protection mechanisms:
+     * StoplossGuard: Stops after 2 losses
+     * MaxDrawdown: Stops at 15% drawdown
+     * LowProfitPairs: Stops underperforming pairs
+     * CooldownPeriod: Prevents overtrading
+
+5. CODE IMPROVEMENTS:
+   - Fixed deprecated DataFrame.append() -> pd.concat()
+   - Better code documentation
+   - More granular profit taking
+
+DISCLAIMER: This is for educational purposes only. Trade at your own risk.
+"""
+
 # --- Do not remove these libs ---
 import numpy as np  # noqa
 import pandas as pd  # noqa
@@ -28,15 +75,18 @@ class Uptrend(IStrategy):
 
     # Minimal ROI designed for the strategy.
     # This attribute will be overridden if the config file contains "minimal_roi".
+    # Optimized ROI table for better profit taking
     minimal_roi = {
-        "60": 0.1,
-        "30": 0.02,
-        "0": 0.04
+        "0": 0.15,      # Exit at 15% profit immediately if reached
+        "20": 0.08,     # Exit at 8% after 20 minutes
+        "40": 0.05,     # Exit at 5% after 40 minutes
+        "80": 0.03,     # Exit at 3% after 80 minutes
+        "120": 0.02     # Exit at 2% after 2 hours
     }
 
     # Optimal stoploss designed for the strategy.
     # This attribute will be overridden if the config file contains "stoploss".
-    stoploss = -0.10
+    stoploss = -0.12
 
     # Trailing stoploss
     trailing_stop = False
@@ -58,26 +108,75 @@ class Uptrend(IStrategy):
     # Number of candles the strategy requires before producing valid signals
     startup_candle_count: int = 30
 
+    # Protections to prevent losses during bad market conditions
+    protections = [
+        {
+            "method": "StoplossGuard",
+            "lookback_period_candles": 24,  # Look back 24 candles (2 hours on 5m)
+            "trade_limit": 2,  # Stop trading after 2 stoplosses
+            "stop_duration_candles": 12,  # Stop for 12 candles (1 hour)
+            "only_per_pair": True  # Only for the specific pair
+        },
+        {
+            "method": "MaxDrawdown",
+            "lookback_period_candles": 48,  # Look back 4 hours
+            "trade_limit": 3,  # Minimum 3 trades
+            "stop_duration_candles": 24,  # Stop for 2 hours
+            "max_allowed_drawdown": 0.15  # Stop if 15% drawdown
+        },
+        {
+            "method": "LowProfitPairs",
+            "lookback_period_candles": 60,  # Look back 5 hours
+            "trade_limit": 2,  # Minimum 2 trades
+            "stop_duration_candles": 60,  # Stop for 5 hours
+            "required_profit": -0.03  # Stop if less than -3% profit
+        },
+        {
+            "method": "CooldownPeriod",
+            "stop_duration_candles": 2  # Wait 2 candles between trades on same pair
+        }
+    ]
+
     use_custom_stoploss = True
     def custom_stoploss(self, pair: str, trade: 'Trade', current_time: datetime,
                         current_rate: float, current_profit: float, **kwargs) -> float:
+        """
+        Enhanced custom stoploss with dynamic trailing based on profit levels
+        """
+        # Default to no custom stoploss (use the static one)
         sl_new = 1
 
-        if (current_profit > 0.2):
+        # More aggressive trailing as profit increases
+        if (current_profit > 0.25):
+            # Above 25% profit, trail with 7% stop
+            sl_new = 0.07
+        elif (current_profit > 0.20):
+            # Above 20% profit, trail with 5% stop
             sl_new = 0.05
-        elif (current_profit > 0.1):
+        elif (current_profit > 0.15):
+            # Above 15% profit, trail with 4% stop
+            sl_new = 0.04
+        elif (current_profit > 0.10):
+            # Above 10% profit, trail with 3% stop
             sl_new = 0.03
         elif (current_profit > 0.06):
+            # Above 6% profit, trail with 2% stop
             sl_new = 0.02
-        elif (current_profit > 0.03):
+        elif (current_profit > 0.04):
+            # Above 4% profit, trail with 1.5% stop
             sl_new = 0.015
-        elif (current_profit > 0.015):
-            sl_new = 0.0075
+        elif (current_profit > 0.02):
+            # Above 2% profit, trail with 1% stop
+            sl_new = 0.01
+        elif (current_profit > 0.01):
+            # Above 1% profit, trail with 0.5% stop
+            sl_new = 0.005
 
         return sl_new
 
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Original MAMA/FAMA indicators
         dataframe['hl2'] = (dataframe['high'] + dataframe['low']) / 2
         dataframe['mama'], dataframe['fama'] = ta.MAMA(dataframe['hl2'], 0.5, 0.05)
 
@@ -86,33 +185,157 @@ class Uptrend(IStrategy):
 
         dataframe['zero'] = 0
 
+        # RSI with multiple periods for better signals
         dataframe['rsi'] = ta.RSI(dataframe['close'], timeperiod=14)
+        dataframe['rsi_fast'] = ta.RSI(dataframe['close'], timeperiod=7)
+        dataframe['rsi_slow'] = ta.RSI(dataframe['close'], timeperiod=21)
 
-        # EMA 50
+        # EMA trend indicators
+        dataframe['ema12'] = ta.EMA(dataframe['close'], timeperiod=12)
+        dataframe['ema26'] = ta.EMA(dataframe['close'], timeperiod=26)
         dataframe['ema50'] = ta.EMA(dataframe['close'], timeperiod=50)
-
-        # EMA 200
+        dataframe['ema100'] = ta.EMA(dataframe['close'], timeperiod=100)
         dataframe['ema200'] = ta.EMA(dataframe['close'], timeperiod=200)
+
+        # MACD for momentum
+        macd = ta.MACD(dataframe['close'], fastperiod=12, slowperiod=26, signalperiod=9)
+        dataframe['macd'] = macd['macd']
+        dataframe['macdsignal'] = macd['macdsignal']
+        dataframe['macdhist'] = macd['macdhist']
+
+        # Bollinger Bands for volatility
+        bollinger = qtpylib.bollinger_bands(qtpylib.typical_price(dataframe), window=20, stds=2)
+        dataframe['bb_lowerband'] = bollinger['lower']
+        dataframe['bb_middleband'] = bollinger['mid']
+        dataframe['bb_upperband'] = bollinger['upper']
+        dataframe['bb_width'] = (dataframe['bb_upperband'] - dataframe['bb_lowerband']) / dataframe['bb_middleband']
+
+        # Volume indicators
+        dataframe['volume_mean'] = dataframe['volume'].rolling(window=20).mean()
+        dataframe['volume_ratio'] = dataframe['volume'] / dataframe['volume_mean']
+
+        # ADX for trend strength
+        dataframe['adx'] = ta.ADX(dataframe, timeperiod=14)
+        dataframe['plus_di'] = ta.PLUS_DI(dataframe, timeperiod=14)
+        dataframe['minus_di'] = ta.MINUS_DI(dataframe, timeperiod=14)
+
+        # Stochastic for overbought/oversold
+        stoch = ta.STOCH(dataframe, fastk_period=14, slowk_period=3, slowd_period=3)
+        dataframe['stoch_k'] = stoch['slowk']
+        dataframe['stoch_d'] = stoch['slowd']
+
+        # CCI for cyclical trends
+        dataframe['cci'] = ta.CCI(dataframe, timeperiod=20)
+
+        # MFI (Money Flow Index) for volume-weighted momentum
+        dataframe['mfi'] = ta.MFI(dataframe, timeperiod=14)
+
+        # ATR for volatility and dynamic stops
+        dataframe['atr'] = ta.ATR(dataframe, timeperiod=14)
+        dataframe['atr_percent'] = (dataframe['atr'] / dataframe['close']) * 100
+
+        # Trend detection
+        dataframe['trend_ema'] = (dataframe['ema12'] > dataframe['ema26']).astype(int)
+        dataframe['strong_trend'] = ((dataframe['ema12'] > dataframe['ema26']) &
+                                      (dataframe['ema26'] > dataframe['ema50']) &
+                                      (dataframe['ema50'] > dataframe['ema200'])).astype(int)
 
         return dataframe
 
     def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        """
+        Enhanced buy signal with multiple confirmations:
+        - MAMA/FAMA uptrend (original)
+        - RSI not overbought
+        - Volume confirmation
+        - Trend confirmation (EMAs)
+        - Momentum confirmation (MACD, ADX)
+        - Price near support (Bollinger Bands)
+        """
         dataframe.loc[
             (
-                (dataframe['rsi'] < 80) &
-                (dataframe['mama'] >  dataframe['fama']) & # uptrend
+                # Original MAMA/FAMA uptrend signal
+                (dataframe['mama'] > dataframe['fama']) &
                 (dataframe['mama_diff_ratio'] > 0.04) &
-                (dataframe['volume'] > 0)  # Make sure Volume is not 0
+
+                # RSI conditions - not overbought, showing strength
+                (dataframe['rsi'] > 30) &
+                (dataframe['rsi'] < 70) &
+                (dataframe['rsi_fast'] > dataframe['rsi_fast'].shift(1)) &  # RSI gaining strength
+
+                # Trend confirmation - price above key EMAs
+                (dataframe['close'] > dataframe['ema50']) &
+                (dataframe['ema12'] > dataframe['ema26']) &
+
+                # Momentum confirmation
+                (dataframe['macd'] > dataframe['macdsignal']) &  # MACD bullish
+                (dataframe['macdhist'] > 0) &
+                (dataframe['adx'] > 20) &  # Minimum trend strength
+
+                # Volume confirmation - above average
+                (dataframe['volume_ratio'] > 1.0) &
+
+                # Not oversold on stochastic (avoid catching falling knives)
+                (dataframe['stoch_k'] > 20) &
+
+                # Price action - not too extended
+                (dataframe['close'] < dataframe['bb_upperband']) &
+
+                # MFI shows money flowing in
+                (dataframe['mfi'] > 25) &
+                (dataframe['mfi'] < 75) &
+
+                (dataframe['volume'] > 0)
             ),
             'buy'] = 1
 
         return dataframe
 
     def populate_sell_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        """
+        Enhanced sell signal with multiple exit conditions:
+        - MAMA/FAMA downtrend (original)
+        - RSI overbought
+        - Momentum weakening
+        - Trend reversal signals
+        """
         dataframe.loc[
             (
-                (dataframe['mama_diff_ratio'] < 0.01) &
-                (dataframe['volume'] > 0)  # Make sure Volume is not 0
+                (
+                    # Original MAMA/FAMA signal weakening
+                    (dataframe['mama_diff_ratio'] < 0.01) |
+
+                    # RSI extremely overbought
+                    (dataframe['rsi'] > 80) |
+
+                    # MACD bearish crossover
+                    (
+                        (dataframe['macd'] < dataframe['macdsignal']) &
+                        (dataframe['macd'].shift(1) >= dataframe['macdsignal'].shift(1))
+                    ) |
+
+                    # Stochastic overbought and crossing down
+                    (
+                        (dataframe['stoch_k'] > 80) &
+                        (dataframe['stoch_k'] < dataframe['stoch_d'])
+                    ) |
+
+                    # Price hitting upper Bollinger Band with weakening momentum
+                    (
+                        (dataframe['close'] > dataframe['bb_upperband']) &
+                        (dataframe['rsi'] > 70)
+                    ) |
+
+                    # Money flowing out (MFI)
+                    (dataframe['mfi'] > 85) |
+
+                    # Trend reversal - price crosses below EMA12
+                    (
+                        (dataframe['close'] < dataframe['ema12']) &
+                        (dataframe['close'].shift(1) >= dataframe['ema12'].shift(1))
+                    )
+                ) &
+                (dataframe['volume'] > 0)
             ),
             'sell'] = 1
         return dataframe
@@ -212,9 +435,10 @@ class SuperBuy(Uptrend):
                 all_bad_points = self.bad_buy_point_dict[pair]
                 all_points = self.all_points_dict[pair]
             else:
-                all_best_points = all_best_points.append(self.best_buy_point_dict[pair])
-                all_bad_points = all_bad_points.append(self.bad_buy_point_dict[pair])
-                all_points = all_points.append(self.all_points_dict[pair])
+                # Fixed: Use pd.concat instead of deprecated append
+                all_best_points = pd.concat([all_best_points, self.best_buy_point_dict[pair]], ignore_index=False)
+                all_bad_points = pd.concat([all_bad_points, self.bad_buy_point_dict[pair]], ignore_index=False)
+                all_points = pd.concat([all_points, self.all_points_dict[pair]], ignore_index=False)
 
         print("HERE COMMON VALUES FOR ALL BEST POINTS !!!!!!!!!!")
         res = list()
